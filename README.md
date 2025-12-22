@@ -1,4 +1,4 @@
-## Literature Review / Sources Overview (Checkpoint 2)
+## Literature Review / Sources Overview
 
 This section summarizes the key data sources and academic background used in the thesis, as well as the methodological foundations of electricity price forecasting.
 
