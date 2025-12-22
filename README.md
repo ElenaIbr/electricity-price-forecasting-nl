@@ -38,5 +38,3 @@ The reviewed sources address:
 - properties of hourly electricity price data (volatility, seasonality, price spikes);
 - strengths and limitations of different forecasting approaches;
 - practical considerations for short-term (day-ahead) forecasting.
-
-A detailed discussion of the reviewed literature is provided in **Chapter 1** of the thesis.
