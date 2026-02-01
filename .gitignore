@@ -1,0 +1,20 @@
+# env
+.env
+.venv/
+venv/
+.venvconda/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# notebooks
+.ipynb_checkpoints/
+
+# local stuff
+.DS_Store
+
+# ML / temp
+tf/

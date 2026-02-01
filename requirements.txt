@@ -1,0 +1,8 @@
+pandas
+pytz
+requests
+yfinance
+entsoe-py
+python-dotenv
+matplotlib
+statsmodels
