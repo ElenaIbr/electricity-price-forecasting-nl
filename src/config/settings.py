@@ -1,0 +1,27 @@
+# src/config/settings.py
+
+# Location (De Bilt, NL)
+LATITUDE = 52.10
+LONGITUDE = 5.18
+TIMEZONE = "UTC"
+
+# General date ranges
+START_DATE_HISTORY = "2019-01-01"
+END_DATE_HISTORY = "2026-01-01"
+
+# Data frequencies
+BASE_FREQ = "15min"
+WEATHER_FREQ = "1h"
+
+# Sources
+CO2_TICKER = "CO2.L"
+COUNTRY_CODE = "NL"
+
+ENTSOE_START_DATE = "2019-01-01"
+ENTSOE_END_DATE = "2026-01-01"
+LOCAL_TIMEZONE = "Europe/Amsterdam"
+
+GAS_TICKER = "TTF=F"
+
+END_DATE_HISTORY_INCLUSIVE = "2025-12-31"
+END_DATE_HISTORY_EXCLUSIVE = "2026-01-01"

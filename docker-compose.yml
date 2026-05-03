@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: electricity_postgres
+    environment:
+      POSTGRES_DB: electricity
+      POSTGRES_USER: electricity_user
+      POSTGRES_PASSWORD: electricity_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - electricity_pg_data:/var/lib/postgresql/data
+
+volumes:
+  electricity_pg_data:
