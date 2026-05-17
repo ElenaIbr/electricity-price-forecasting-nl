@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 
 from src.config.settings import COUNTRY_CODE, LOCAL_TIMEZONE
 
-START_YEAR = 2023
+START_YEAR = 2019
 END_YEAR = 2025
 
 TABLE_NAME = "raw_wind_forecast_15min"

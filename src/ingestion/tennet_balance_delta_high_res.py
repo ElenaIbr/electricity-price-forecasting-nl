@@ -24,7 +24,7 @@ TABLE_NAME = "raw_tennet_balance_delta_high_res"
 SOURCE_NAME = "tennet_balance_delta_high_res"
 ENDPOINT = "/publications/v1/balance-delta-high-res"
 
-START_DATE = "2023-01-01"
+START_DATE = "2019-01-01"
 END_DATE = "2026-01-01"
 
 

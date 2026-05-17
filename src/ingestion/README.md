@@ -4,6 +4,13 @@ This folder contains ingestion scripts for the diploma project dataset.
 
 The goal of the ingestion layer is to download data from external sources, normalize basic schemas, validate timestamps, and store RAW data in PostgreSQL.
 
+There are **two ingestion modes**:
+
+| Mode | Folder | Purpose | Table prefix | Write semantics |
+|------|--------|---------|--------------|-----------------|
+| **Historical** (backfill) | `src/ingestion/*.py` | One-shot full history download for training. | `raw_*` | `if_exists="replace"` — full table rewrite |
+| **Operational** (daily) | `src/ingestion/operational/` | Incremental pull of a recent window for daily inference. | `op_*` | Delete-by-window + append (idempotent) |
+
 ## Rules
 
 - No resampling
@@ -14,7 +21,7 @@ The goal of the ingestion layer is to download data from external sources, norma
 - Timestamps must be converted to UTC
 - RAW data should stay as close to the original source as possible
 
-Feature construction belongs to a separate transform/processing layer. Yes, even if it is “just one small column”. That is how pipelines become swamp creatures.
+Feature construction belongs to a separate transform/processing layer. Yes, even if it is "just one small column". That is how pipelines become swamp creatures.
 
 ## Environment variables
 
@@ -26,9 +33,71 @@ ENTSOE_API_TOKEN=your_entsoe_api_token
 TENNET_API_KEY=your_tennet_api_key
 ```
 
-## Main orchestrator
+## Operational ingestion (daily inference)
 
-Run all ingestion jobs from the project root:
+The operational layer is the right entrypoint for any **as-of-now** data pull
+that feeds D+1 forecasting. It works on a short window
+`[as_of - lookback_days, as_of + forecast_days]`, defined by
+`OperationalWindow` in `src/ingestion/base.py`.
+
+```bash
+# default: as_of = now UTC, lookback 35d, forecast 2d
+python -m src.ingestion.operational.runner
+
+# explicit as_of (useful for replay / debugging)
+python -m src.ingestion.operational.runner --as-of 2026-05-10T11:00
+
+# only run a subset of sources
+python -m src.ingestion.operational.runner --only weather,gas
+
+# show what would be done without writing to DB
+python -m src.ingestion.operational.runner --dry-run
+```
+
+Available sources (registered in `operational/runner.py::OPERATIONAL_FETCHERS`):
+
+| Key | Class | Output table |
+|-----|-------|--------------|
+| `da_prices` | `EntsoeDayAheadPricesOperational` | `op_da_prices_hourly` |
+| `load_actual` | `EntsoeLoadActualOperational` | `op_load_actual_15min` |
+| `load_forecast` | `EntsoeLoadForecastOperational` | `op_load_forecast_15min` |
+| `generation_forecast` | `EntsoeGenerationForecastOperational` | `op_generation_forecast_15min` |
+| `weather` | `OpenMeteoWeatherOperational` | `op_weather_hourly` (incl. `kind` ∈ {actual, forecast}) |
+| `gas` | `GasTtfDailyOperational` | `op_gas_price_daily` |
+
+Each operational fetcher inherits from `BaseFetcher`:
+
+```python
+class MyFetcher(BaseFetcher):
+    table_name = "op_my_source"
+    def fetch(self, window: OperationalWindow) -> pd.DataFrame: ...
+```
+
+`save()` is provided by the base class and uses transactional
+**delete-by-window + append**: re-running with the same window yields the
+same result; nothing accumulates duplicates.
+
+### Operational timing — what's known when
+
+For NL day-ahead, gate closes at **12:00 CET D-1**, results published
+~12:42 CET D-1. So at any operational `as_of`:
+
+| Source | Available range | Used as |
+|--------|-----------------|---------|
+| NL DA prices | up to end of day(`as_of`) (if past 12:42 D-1) | `lag_1d`, `lag_7d` |
+| DE/BE/FR DA prices | same | cross-border lags only |
+| Load actual | up to ~`as_of - 1h` | `actual_load_lag_1d` |
+| Load forecast | through D+1 | `load_forecast` (direct) |
+| Generation forecast (wind/solar) | through D+1 | direct features |
+| Weather | past_days actual + 16 forecast days (single API call) | direct + lags |
+| Gas (TTF) | yesterday's close | `gas_lag_1d` |
+
+> ⚠️ Cross-border DA prices for D+1 are **not** available at NL inference time
+> (other auctions clear simultaneously). Only lagged values are admissible.
+
+## Historical (backfill) orchestrator
+
+For full re-download of historical data (used for training):
 
 `python -m src.pipelines.run_ingestion`
 
