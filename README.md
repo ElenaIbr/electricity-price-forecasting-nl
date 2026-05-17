@@ -1,24 +1,19 @@
-# NL Day-Ahead Electricity Price Forecasting
+# NL Day-Ahead Electricity Price Forecasting (Прогнозирование цен на электроэнергию на рынке NL Day-Ahead)
 
-Production-ready ML система для почасового прогноза day-ahead цен на
-электроэнергию в Нидерландах (NL DA market) на горизонт **D+1** (24 часа).
-
-Master's thesis. Прогноз делается **до закрытия day-ahead аукциона**
-(12:00 CET D-1) и использует только данные, реально доступные на этот момент.
+Работа выполнена в рамках магистерской диссертации. Прогноз формируется до закрытия day-ahead аукциона (12:00 CET, D−1) и использует только данные, доступные на момент построения прогноза.
 
 ## Текущие результаты
 
 | Метрика | Значение | Контекст |
 |---|---|---|
-| **MAE (валидация 2025)** | **14.55 EUR/MWh** | 8 757 часов |
-| Naive -7d baseline | 30.11 EUR/MWh | то же окно |
-| **Улучшение vs naive** | **51.66%** | |
-| RMSE | 23.56 | |
-| sMAPE | 32.6% | |
-| Live 2026-04-15 (24h, real data) | MAE 9.93 EUR/MWh | live ENTSO-E + Open-Meteo + yfinance |
+| **MAE (валидация 2025)** | **14.62 EUR/MWh** |
+| Naive -7d baseline | 30.11 EUR/MWh |
+| **Улучшение vs naive** | **51.66%** |
+| RMSE | 23.74 |
+| sMAPE | 32.97% |
 
 Архитектура: **Averaging Ensemble (10 diverse LightGBM)** + **Asymmetric
-Spike Classifier Blend** (top-k% для HIGH spikes, threshold-based для LOW).
+Spike Classifier Blend** (threshold-based для LOW).
 
 ## Архитектура
 
@@ -97,7 +92,7 @@ electricity-price-forecasting-nl/
 
 ```bash
 pip install -r requirements.txt
-docker compose up -d                   # Postgres
+docker compose up -d 
 python -c "from src.db.connection import get_engine; print(get_engine())"
 ```
 
@@ -108,13 +103,12 @@ python -c "from src.db.connection import get_engine; print(get_engine())"
 
 ```bash
 python scripts/test_on_2026.py --target-date 2026-04-15
-# → MAE 9.93 EUR/MWh
 ```
 
 ### API server
 
 ```bash
-python -m src.api.cli                  # http://localhost:8000
+python -m src.api.cli
 # Swagger UI: http://localhost:8000/docs
 ```
 
@@ -122,7 +116,7 @@ python -m src.api.cli                  # http://localhost:8000
 curl -s http://localhost:8000/health
 curl -s http://localhost:8000/info | jq .metadata.val_mae
 
-# 24-hour forecast (см. src/api/README.md для полного payload)
+# 24-hour forecast
 curl -X POST http://localhost:8000/forecast -H 'Content-Type: application/json' -d @payload.json
 ```
 
@@ -131,7 +125,7 @@ curl -X POST http://localhost:8000/forecast -H 'Content-Type: application/json' 
 ```bash
 python -m src.ingestion.operational.runner --dry-run
 python -m src.ingestion.operational.runner --as-of 2026-05-10T11:00 --only weather,gas
-python -m src.ingestion.operational.runner            # полный pull
+python -m src.ingestion.operational.runner
 ```
 
 ### Историческая загрузка (backfill для тренировки)
@@ -159,25 +153,11 @@ NL DA gate closure: **12:00 CET D-1**, результаты публикуютс
 только данные до T. Cross-border DA для D+1 не используются никак, кроме
 `*_lag_1d` и `*_lag_7d`.
 
-## Components status
-
-| Слой | Статус | Что есть |
-|---|---|---|
-| Ingestion (historical) | ✅ Done | 17 скриптов, ENTSO-E + TenneT + Open-Meteo + yfinance |
-| Ingestion (operational) | ✅ Done | 6 fetchers + runner + CLI + delete-by-window upsert |
-| Features | ✅ Done | `build_feature_frame` + 6 no-leakage tests + `FittedFeatureParams` |
-| Model bundle | ✅ Done | save/load/migrate + `feature_eng_hash` integrity check |
-| Forecast pipeline | ✅ Done | stack→clf→blend, `predict_with_components` |
-| API (inference) | ✅ Done | `/health`, `/info`, `/forecast`, `/forecast/debug` |
-| Daily inference pipeline | ⏳ TODO | `src/inference/daily.py`: ingest → features → predict → persist |
-| Persistence layer | ⏳ TODO | alembic-миграции (raw / curated / predictions схемы) |
-| Training pipeline | ⏳ TODO | рефакторинг 06_hourly_forecast notebook → `src/training/` |
-
 ## Тесты
 
 ```bash
-python -m src.features.tests.test_no_leakage     # 6 invariant tests
-python -m src.models.tests.test_bundle_io        # bundle save/load smoke
+python -m src.features.tests.test_no_leakage
+python -m src.models.tests.test_bundle_io
 pytest src/ -v
 ```
 
