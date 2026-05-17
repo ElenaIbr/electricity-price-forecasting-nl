@@ -4,7 +4,7 @@
 
 ## Текущие результаты
 
-| Метрика | Значение | Контекст |
+| Метрика | Значение |
 |---|---|---|
 | **MAE (валидация 2025)** | **14.62 EUR/MWh** |
 | Naive -7d baseline | 30.11 EUR/MWh |
@@ -195,8 +195,3 @@ pytest src/ -v
 
 - [src/ingestion/README.md](src/ingestion/README.md) — historical vs operational режимы
 - [src/api/README.md](src/api/README.md) — endpoints + curl examples + payload schema
-
-## License & attribution
-
-Master's thesis project. Не для commercial use без согласия автора.
-Архитектура и production-ready рефакторинг — Claude Opus.
