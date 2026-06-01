@@ -28,8 +28,6 @@ The work has two parallel goals:
 | sMAPE | 32.97 % |
 | Improvement vs Naive-7d baseline | +51.7 % |
 
-The backtest on May 2026 — data the model has never seen — confirms that the test-set performance generalises. The one outlier day (1 May 2026, Labour Day in DE/BE/FR, MAE 81.94) pulls the monthly average up by ~2 EUR/MWh; without it the model would track 2025 performance closely. This is documented in [src/features/holidays_nl.py](src/features/holidays_nl.py) and discussed under "Known limitations".
-
 ### Architecture
 
 ```
@@ -342,8 +340,6 @@ Master's thesis project. Not for commercial use without the author's consent.
 | RMSE | 23.74 EUR/MWh |
 | sMAPE | 32.97 % |
 | Улучшение относительно Naive-7d baseline | +51.7 % |
-
-Бэктест на мае 2026 — это данные, которых модель никогда не видела — подтверждает что качество с test set обобщается. Один outlier-день (1 мая 2026, Labour Day в DE/BE/FR, MAE 81.94) поднимает месячное среднее примерно на 2 EUR/MWh; без него модель работает почти как на 2025. Этот эффект описан в [src/features/holidays_nl.py](src/features/holidays_nl.py) и в разделе «Известные ограничения».
 
 ### Архитектура
 
