@@ -21,15 +21,12 @@ The work has two parallel goals:
 
 ### Current results
 
-| Metric | Value | Context |
-|---|---|---|
-| **MAE on 2025 hold-out (test set)** | **14.62 EUR/MWh** | 8 757 hours |
-| Naive -7d baseline | 30.11 EUR/MWh | same window |
-| **Improvement vs naive** | **51.7 %** | |
-| RMSE | 23.74 | |
-| sMAPE | 32.97 % | |
-| **Live backtest, May 2026** | **MAE 15.68 EUR/MWh** | 31 days, 744 hours, fresh ENTSO-E / Open-Meteo data |
-| Median daily MAE (May 2026) | 12.49 | 71 % of days achieve MAE < 15 |
+| Quality metric | Value |
+|---|---|
+| MAE | 14.62 EUR/MWh |
+| RMSE | 23.74 EUR/MWh |
+| sMAPE | 32.97 % |
+| Improvement vs Naive-7d baseline | +51.7 % |
 
 The backtest on May 2026 — data the model has never seen — confirms that the test-set performance generalises. The one outlier day (1 May 2026, Labour Day in DE/BE/FR, MAE 81.94) pulls the monthly average up by ~2 EUR/MWh; without it the model would track 2025 performance closely. This is documented in [src/features/holidays_nl.py](src/features/holidays_nl.py) and discussed under "Known limitations".
 
@@ -339,15 +336,12 @@ Master's thesis project. Not for commercial use without the author's consent.
 
 ### Текущие результаты
 
-| Метрика | Значение | Контекст |
-|---|---|---|
-| **MAE на hold-out 2025 (test set)** | **14.55 EUR/MWh** | 8 757 часов |
-| Naive -7d baseline | 30.11 EUR/MWh | то же окно |
-| **Улучшение vs naive** | **51.7 %** | |
-| RMSE | 23.56 | |
-| sMAPE | 32.6 % | |
-| **Live backtest, май 2026** | **MAE 15.68 EUR/MWh** | 31 день, 744 часа, свежие ENTSO-E / Open-Meteo |
-| Median daily MAE (май 2026) | 12.49 | 71 % дней дают MAE < 15 |
+| Метрика качества | Значение |
+|---|---|
+| MAE | 14.62 EUR/MWh |
+| RMSE | 23.74 EUR/MWh |
+| sMAPE | 32.97 % |
+| Улучшение относительно Naive-7d baseline | +51.7 % |
 
 Бэктест на мае 2026 — это данные, которых модель никогда не видела — подтверждает что качество с test set обобщается. Один outlier-день (1 мая 2026, Labour Day в DE/BE/FR, MAE 81.94) поднимает месячное среднее примерно на 2 EUR/MWh; без него модель работает почти как на 2025. Этот эффект описан в [src/features/holidays_nl.py](src/features/holidays_nl.py) и в разделе «Известные ограничения».
 
