@@ -328,9 +328,7 @@ Master's thesis project. Not for commercial use without the author's consent.
 У работы две параллельные цели:
 
 1. **Исследовательская** — сравнить подходы (классические SARIMAX, линейная регрессия на engineered features, градиентный бустинг, stacking ensemble, spike-aware post-processing) на пятилетнем датасете реальных рыночных данных и понять что именно работает на этом рынке и почему.
-2. **Production-готовность** — превратить итоговую модель в работающий пайплайн, который можно запускать на live данных: версионированные model bundles, integrity-checked feature engineering, REST API, бэктесты на невидимых для модели данных 2026 года.
-
-Большинство академических работ по forecasting заканчиваются метрикой на test set. Здесь — модель вызывается командой `python scripts/test_on_2026.py --target-date 2026-05-15` и возвращает 24 цены на дате, которой не существовало в момент обучения.
+2. **Готовность к промышленной эксплуатации** — превратить итоговую модель в работающий пайплайн, который можно запускать на живых данных: версионированные model bundles, integrity-checked feature engineering, REST API, бэктесты на невидимых для модели данных 2026 года.
 
 ### Текущие результаты
 
@@ -354,7 +352,7 @@ Master's thesis project. Not for commercial use without the author's consent.
                                   Params (квантили)  (joblib)
 ```
 
-Главное архитектурное решение — **единый контракт training ↔ inference**. Один и тот же `build_feature_frame()` считает фичи и в обучении (в notebook), и в продакшен-инференсе (API). Это исключает feature drift между train и serve — известный production-failure mode в табличном ML. Контракт защищён двумя механизмами:
+Главное архитектурное решение — **единый контракт training ↔ inference**. Один и тот же `build_feature_frame()` считает фичи и в обучении (в notebook), и в продакшен-инференсе (API). Контракт защищён двумя механизмами:
 
 - **`feature_eng_hash`** — SHA-256 модуля features, встроенный в каждый model bundle. Bundle отказывается грузиться если код features изменился относительно версии на которой он обучался.
 - **No-leakage тесты** — инварианты проверяющие что фичи в момент T используют только данные доступные до T (`src/features/tests/test_no_leakage.py`).
