@@ -3,20 +3,15 @@
 Контракт:
     build_feature_frame(history, params, ctx) -> DataFrame
 
-Pure: ни I/O, ни обращения ко времени `now()`. На одинаковом входе всегда
-один и тот же выход. На любом timestamp T фичи зависят ТОЛЬКО от данных
-history до T (либо forecast-колонок, которые в master frame по построению
-известны заранее).
-
 Inference flow:
-    history = read_master_frame(end=ctx.as_of + 1d)   # включая D+1 forecasts
+    history = read_master_frame(end=ctx.as_of + 1d)
     feats = build_feature_frame(history, params, ctx)
-    target_rows = feats.loc[ctx.target_date]          # 24 строки на D+1
+    target_rows = feats.loc[ctx.target_date]
     y_pred = model.predict(target_rows)
 
 Training flow:
     history = read_master_frame()
-    feats = build_feature_frame(history, params, ctx)  # ctx.as_of = max train ts
+    feats = build_feature_frame(history, params, ctx)
     train_X = feats.loc[:cutoff].dropna()
 """
 from __future__ import annotations
@@ -50,8 +45,6 @@ class FeatureContext:
     Все transforms в build_feature_frame пользуются ТОЛЬКО `.shift()`, то
     есть фичи в момент T зависят строго от прошлого относительно T —
     никакая будущая строка истории не может leak-нуть в фичи прошлого.
-
-    target_date — опциональный helper для inference (день D+1).
     """
 
     as_of: pd.Timestamp
@@ -96,23 +89,19 @@ def build_feature_frame(
         history = history.copy()
         history.index = history.index.tz_localize("UTC")
 
-    # NB: НЕ режем по ctx.as_of. Все transforms ниже опираются строго на
-    # `.shift()` (past values), поэтому фичи в момент T не зависят от строк > T,
-    # даже если они присутствуют в input. Caller решает, какие строки выходного
-    # DataFrame ему нужны (e.g. inference вырезает 24 строки target_date).
     df = history.copy().sort_index()
 
     p = df[TARGET]
 
-    # ────────── Price lags (same hour history) ──────────
+    # Price lags (same hour history)
     for d in [1, 2, 7, 14, 21, 28]:
         df[f"lag_{d}d"] = p.shift(d * 24)
     df["lag_prev_hour"] = p.shift(24 + 1)
     df["lag_next_hour"] = p.shift(24 - 1)
     df["lag_2d_next"]   = p.shift(48 - 1)
 
-    # ────────── Rolling stats (regime detection) ──────────
-    p1 = p.shift(24)  # лагированный price для всех rolling
+    # Rolling stats (regime detection)
+    p1 = p.shift(24)
     for w in [7, 14, 30]:
         df[f"roll_{w}d_mean"] = p1.rolling(w * 24).mean()
         if w in (7, 14):
@@ -120,7 +109,7 @@ def build_feature_frame(
     df["price_vol_3d_lag1d"] = p1.rolling(3 * 24).std()
     df["price_vol_7d_lag1d"] = p1.rolling(7 * 24).std()
 
-    # ────────── Commodity & cross-border DA ──────────
+    # Commodity & cross-border DA
     df["gas_lag_1d"]   = df["gas_price"].shift(24)
     df["de_da_lag_1d"] = df["de_day_ahead_price"].shift(24)
     df["be_da_lag_1d"] = df["be_day_ahead_price"].shift(24)
@@ -132,18 +121,18 @@ def build_feature_frame(
     df["spread_nl_be_lag1d"] = p.shift(24) - df["be_day_ahead_price"].shift(24)
     df["spread_nl_fr_lag1d"] = p.shift(24) - df["fr_day_ahead_price"].shift(24)
 
-    # ────────── Imbalance ──────────
+    # Imbalance prices
     df["imb_long_lag_1d"]  = df["imbalance_price_long"].shift(24)
     df["imb_short_lag_1d"] = df["imbalance_price_short"].shift(24)
     df["imb_long_lag_7d"]  = df["imbalance_price_long"].shift(24 * 7)
     df["imb_spread_lag1d"] = df["imb_long_lag_1d"] - df["imb_short_lag_1d"]
 
-    # ────────── Weather actuals (lag-only) ──────────
+    # Weather actuals (lag-only)
     for col in ["temperature_c", "wind_ms", "solar_radiation"]:
         df[f"{col}_lag_1d"] = df[col].shift(24)
     df["temperature_c_lag_7d"] = df["temperature_c"].shift(24 * 7)
 
-    # ────────── Generation (forecast + lags) ──────────
+    # Generation (forecast + lags)
     for col in ["load_forecast", "wind_forecast_mw"]:
         df[f"{col}_lag_1d"] = df[col].shift(24)
         df[f"{col}_lag_7d"] = df[col].shift(24 * 7)
@@ -158,7 +147,7 @@ def build_feature_frame(
         + df["solar_forecast_mw"] / params.solar_forecast_max
     ) / 2
 
-    # ────────── Calendar ──────────
+    # Calendar features
     df["hour"]       = df.index.hour
     df["dow"]        = df.index.dayofweek
     df["month"]      = df.index.month
@@ -172,7 +161,7 @@ def build_feature_frame(
     df["is_holiday"]          = idx_dates.isin(holidays).astype(int).values
     df["is_holiday_tomorrow"] = next_day_dates.isin(holidays).astype(int).values
 
-    # ────────── Demand drivers ──────────
+    # Demand drivers
     df["heating_degree"]       = (15 - df["temperature_forecast"]).clip(lower=0)
     df["cooling_degree"]       = (df["temperature_forecast"] - 22).clip(lower=0)
     df["heating_degree_lag1d"] = (15 - df["temperature_c"].shift(24)).clip(lower=0)
@@ -196,7 +185,7 @@ def build_feature_frame(
     df["spike_winter_evening"] = df["is_peak_hour"] * df["heating_degree"] * df["wind_drought"]
     df["spike_neg_weekend"]    = df["is_weekend"] * df["is_midday"] * df["solar_surplus"]
 
-    # ────────── Scarcity / extreme-event features ──────────
+    # Extreme-event features
     df["residual_load_p90_lag1d"] = (
         df["residual_load"].shift(24)
         .rolling(90 * 24, min_periods=30 * 24).quantile(0.90)
@@ -224,14 +213,14 @@ def build_feature_frame(
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Hash для аудита: bundle сохраняет hash модуля, inference сравнивает
+# Hash для аудита
 # ──────────────────────────────────────────────────────────────────────────
 
 def features_module_hash() -> str:
     """SHA-256 hash содержимого FE модуля.
 
-    При изменении логики FE hash меняется, и старые bundle'ы
-    стартуют с явной несовместимостью (а не silent skew).
+    При изменении логики FE hash меняется, и старые bundles
+    стартуют с явной несовместимостью (бросает исключение).
     """
     import hashlib
     from pathlib import Path

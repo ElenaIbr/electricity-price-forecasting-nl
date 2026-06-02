@@ -1,10 +1,9 @@
 """Fitted feature parameters.
 
-Глобальные статистики, которые при наивном использовании создают
-train/serve skew. Здесь они fit-ятся ОДИН раз на train-окне и
-далее переиспользуются неизменно — и в training, и в inference.
+Stores feature statistics fitted once on the training data
+and reused unchanged during both training and inference.
 
-Сериализация: JSON, чтобы было видно глазами при ревью bundle'а.
+Serialized as JSON for easier inspection and debugging.
 """
 from __future__ import annotations
 
@@ -17,24 +16,17 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class FittedFeatureParams:
-    """Глобальные стат-параметры, нужные для FE.
-
-    Все значения — float, чтобы сериализация была тривиальной.
-    """
+    # Глобальные стат-параметры, нужные для FE.
 
     wind_forecast_max:      float
-    solar_forecast_max:     float   # max после замены 0 на NaN (как в notebook)
+    solar_forecast_max:     float
     wind_forecast_p20:      float
     solar_forecast_p80:     float
     de_da_p90:              float
     solar_radiation_fc_p95: float
 
-    fit_period_start: str            # ISO date, для аудита
+    fit_period_start: str
     fit_period_end:   str
-
-    # ────────────────────────────────────────
-    # IO
-    # ────────────────────────────────────────
 
     def save(self, path: str | Path) -> Path:
         path = Path(path)
@@ -53,13 +45,6 @@ def fit_feature_params(
     fit_period_start: str | None = None,
     fit_period_end: str | None = None,
 ) -> FittedFeatureParams:
-    """Fit-ит глобальные параметры FE на train-окне.
-
-    Ожидает DataFrame с колонками из INPUT_COLUMNS, индекс — DatetimeIndex.
-
-    `fit_period_start/end` — опциональные ISO-даты для записи в metadata
-    (по факту используется весь переданный train_history).
-    """
     if train_history.empty:
         raise ValueError("Cannot fit on empty history")
 
@@ -70,8 +55,6 @@ def fit_feature_params(
 
     return FittedFeatureParams(
         wind_forecast_max      = float(wind.max()),
-        # NB: notebook делает .replace(0, NaN).max() — у солнечной есть
-        # ночные нули, и max после такой замены = реальный пиковый ампл.
         solar_forecast_max     = float(solar.replace(0, pd.NA).dropna().max()),
         wind_forecast_p20      = float(wind.quantile(0.20)),
         solar_forecast_p80     = float(solar.quantile(0.80)),

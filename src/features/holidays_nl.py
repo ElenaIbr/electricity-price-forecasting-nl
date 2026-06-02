@@ -1,9 +1,9 @@
 """NL holiday calendar.
 
-Минимальный hand-coded набор: New Year, King's Day, Liberation Day, Christmas
-+ Easter-relative (Good Friday, Easter Monday, Ascension, Whit Monday).
+Минимальный набор: New Year, King's Day, Liberation Day, Christmas
+и все Easter-relative (Good Friday, Easter Monday, Ascension, Whit Monday).
 
-Для thesis-уровня этого достаточно. Для production стоит подключить
+Для thesis-уровня этого достаточно. TODO Для production стоит подключить
 `python-holidays` (`pip install holidays`) — но тогда замена должна
 идти под версионированием feature_eng_hash.
 """
@@ -20,7 +20,7 @@ _FIXED_DATES = [
     (12, 26),  # Boxing Day
 ]
 
-# Easter Sunday (computed via Anonymous Gregorian algorithm)
+# Easter Sunday
 def _easter_sunday(year: int) -> dt.date:
     a = year % 19
     b = year // 100

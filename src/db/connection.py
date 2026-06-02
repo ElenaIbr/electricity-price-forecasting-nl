@@ -1,3 +1,9 @@
+"""Database engine factory.
+
+Loads DATABASE_URL from environment variables
+and creates a SQLAlchemy engine instance.
+"""
+
 import os
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
