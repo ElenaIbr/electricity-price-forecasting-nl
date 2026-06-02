@@ -1,10 +1,9 @@
-"""FastAPI dependency injection.
+"""FastAPI dependency injection helpers.
 
-ForecastPipeline загружается один раз при startup и хранится в
-app.state.pipeline. Endpoints просят его через Depends(get_pipeline).
+The ForecastPipeline is loaded once on startup and stored in app.state.pipeline.
 
-Это критично для производительности: bundle весит ~16 MB, грузить
-joblib на каждый запрос медленно.
+This avoids loading the ~16 MB model bundle on every request,
+which would significantly slow down inference.
 """
 from __future__ import annotations
 

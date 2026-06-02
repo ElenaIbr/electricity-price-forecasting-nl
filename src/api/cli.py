@@ -1,7 +1,5 @@
-"""CLI launcher: `python -m src.api.cli`.
+# CLI launcher: `python -m src.api.cli`
 
-Тонкий wrapper вокруг uvicorn с разумными defaults.
-"""
 from __future__ import annotations
 
 import argparse

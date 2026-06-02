@@ -1,7 +1,7 @@
-"""Pydantic схемы IO для FastAPI.
+"""Dependency helpers for accessing the shared ForecastPipeline.
 
-История идёт hourly-records'ами: один dict = одна строка master frame.
-Pydantic v2 валидирует timestamps, ловит missing/extra колонки на границе.
+The pipeline is loaded once during app startup and reused across requests
+for better performance.
 """
 from __future__ import annotations
 

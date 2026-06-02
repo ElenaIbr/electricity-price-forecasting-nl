@@ -3,8 +3,7 @@
 FastAPI-сервис для прогноза hourly DA-цен NL на D+1.
 
 При старте сервер один раз загружает текущий model bundle (`models/current.txt`)
-через `ForecastPipeline.from_bundle("current")` и держит его в памяти —
-inference на запросе не перечитывает joblib-файлы.
+через `ForecastPipeline.from_bundle("current")` и держит его в памяти.
 
 ## Запуск
 
@@ -48,7 +47,7 @@ curl -s http://localhost:8000/health | jq
 ### `GET /info`
 
 Все метаданные текущего bundle: blend params, fitted feature params, train/val MAE,
-feature_eng_hash, и т.д. Удобно для дашбордов.
+feature_eng_hash, и т.д.
 
 ```bash
 curl -s http://localhost:8000/info | jq '.metadata.val_mae, .blend_params'
@@ -92,7 +91,6 @@ curl -s http://localhost:8000/info | jq '.metadata.val_mae, .blend_params'
       "wind_speed_forecast": 5.4,
       "solar_radiation_forecast": 0.0
     }
-    /* … одна запись на каждый hourly слот, ≥ 35 дней истории + строки D+1 с forecast-колонками */
   ],
   "as_of": "2025-05-10T11:00:00Z",
   "target_date": "2025-05-11"
@@ -178,12 +176,8 @@ src/api/
 5. `pipe.predict(X)` → 24 прогноза
 6. сериализация в `ForecastResponse`
 
-## Что НЕ делает (намеренно)
+## Что НЕ делает
 
-- **Не ходит в БД.** Клиент сам предоставляет history. Daily inference pipeline
-  с persistence в Postgres — это `src/inference/daily.py` (пока не реализован).
-- **Не делает ingestion.** Свежие данные тянутся отдельным CLI (`python -m src.ingestion.operational.runner`).
-- **Не переобучает модель.** Training — отдельный flow в `src/training/` (пока не реализован);
-  деплой новой версии = миграция `models/current.txt`.
-- **Нет auth.** В production стоит закрыть как минимум `/forecast` через API-key
-  middleware или reverse-proxy (nginx + basic auth).
+- **Не ходит в БД.** Взаимодействие с БД пока что не реализованно на данном уровне.
+- **Не делает ingestion.** Свежие данные тянутся отдельной CLI командой (`python -m src.ingestion.operational.runner`).
+- **Не переобучает модель.** Пока что не реализовано.

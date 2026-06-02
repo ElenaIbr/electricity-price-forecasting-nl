@@ -1,9 +1,10 @@
-"""FastAPI inference service.
+"""FastAPI service for DA prices forecasting.
 
-Контракт inference:
-    POST /forecast — клиент шлёт history (hourly master frame) + as_of +
-    target_date → сервер делает FE через src.features, грузит current bundle,
-    возвращает 24 hourly preds на target_date.
+POST /forecast:
+- receives historical hourly data and target date
+- builds features
+- runs model inference
+- returns 24 hourly predictions
 
-Bundle загружается один раз при startup (lifespan), не на каждый запрос.
+Model bundle is loaded once on startup and reused for all requests.
 """
