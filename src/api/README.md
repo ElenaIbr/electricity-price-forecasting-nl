@@ -1,9 +1,13 @@
 # Inference API
 
-FastAPI-сервис для прогноза hourly DA-цен NL на D+1.
+FastAPI-сервис для прогноза hourly DA-цен NL.
 
 При старте сервер один раз загружает текущий model bundle (`models/current.txt`)
 через `ForecastPipeline.from_bundle("current")` и держит его в памяти.
+
+Operational inference теперь работает через PostgreSQL: API сам читает свежие
+operational tables, собирает master frame, строит features и возвращает прогноз.
+`history` больше не передаётся в основной forecast endpoint.
 
 ## Запуск
 
@@ -19,17 +23,19 @@ uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
 После старта:
-- интерактивная Swagger-документация: http://localhost:8000/docs
-- OpenAPI schema: http://localhost:8000/openapi.json
 
-### Переменные окружения
+* интерактивная Swagger-документация: http://localhost:8000/docs
+* OpenAPI schema: http://localhost:8000/openapi.json
 
-| Var | Default | Что делает |
-|-----|---------|------------|
-| `MODEL_VERSION` | `current` | Какой bundle грузить. `current` читает `models/current.txt`. |
-| `STRICT_FEATURE_HASH` | `1` | При несовпадении `feature_eng_hash` поднять exception. `0` — только warning. |
-| `API_HOST` | `127.0.0.1` | Default host для CLI. |
-| `API_PORT` | `8000` | Default port для CLI. |
+## Переменные окружения
+
+| Var                   | Default     | Что делает                                                                   |
+| --------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `MODEL_VERSION`       | `current`   | Какой bundle грузить. `current` читает `models/current.txt`.                 |
+| `STRICT_FEATURE_HASH` | `1`         | При несовпадении `feature_eng_hash` поднять exception. `0` — только warning. |
+| `DATABASE_URL`        | —           | PostgreSQL connection string для чтения operational данных.                  |
+| `API_HOST`            | `127.0.0.1` | Default host для CLI.                                                        |
+| `API_PORT`            | `8000`      | Default port для CLI.                                                        |
 
 ## Endpoints
 
@@ -40,9 +46,12 @@ Liveness + версия модели.
 ```bash
 curl -s http://localhost:8000/health | jq
 ```
+
 ```json
 {"status": "ok", "api_version": "0.1.0", "model_version": "v1.0.0-migrated"}
 ```
+
+---
 
 ### `GET /info`
 
@@ -53,17 +62,121 @@ feature_eng_hash, и т.д.
 curl -s http://localhost:8000/info | jq '.metadata.val_mae, .blend_params'
 ```
 
+---
+
 ### `GET /info/features`
 
-Список ожидаемых input-колонок (`required_input_columns`) и финальный
-`feature_list` модели. Поможет клиенту собрать корректный payload.
+Список input-колонок master frame (`required_input_columns`) и финальный
+`feature_list` модели.
 
-### `POST /forecast`
+```bash
+curl -s http://localhost:8000/info/features | jq
+```
 
-Главный endpoint. Принимает hourly history + as_of + target_date,
-возвращает 24 hourly прогноза на target_date.
+---
 
-**Request body:**
+### `GET /forecast`
+
+Главный operational endpoint.
+
+Не принимает `history`.
+API сам читает PostgreSQL operational tables, собирает hourly master frame,
+строит features через `build_feature_frame()` и возвращает 24 hourly прогноза.
+
+Default:
+
+* `as_of` = текущий UTC час;
+* `target_date` = следующий Amsterdam calendar day;
+* `lookback_days` = 60;
+* `forecast_days` = 2.
+
+```bash
+curl -s "http://localhost:8000/forecast" | jq
+```
+
+Для конкретной даты:
+
+```bash
+curl -s "http://localhost:8000/forecast?target_date=2026-06-07" | jq
+```
+
+С явным `as_of`:
+
+```bash
+curl -s "http://localhost:8000/forecast?as_of=2026-06-06T10:00:00Z&target_date=2026-06-07" | jq
+```
+
+#### Query params
+
+| Param           | Default                 | Что делает                                                  |
+| --------------- | ----------------------- | ----------------------------------------------------------- |
+| `target_date`   | tomorrow Amsterdam date | Дата прогноза в формате `YYYY-MM-DD`.                       |
+| `as_of`         | current UTC hour        | Момент, из которого делается прогноз.                       |
+| `lookback_days` | `60`                    | Сколько дней истории читать из БД для lag/rolling features. |
+| `forecast_days` | `2`                     | На сколько дней вперёд читать forecast-источники.           |
+
+#### Response
+
+```json
+{
+  "target_date": "2026-06-07",
+  "model_version": "v1.0.0-migrated",
+  "forecast_made_at": "2026-06-06T18:55:00Z",
+  "n_hours": 24,
+  "hourly": [
+    {"timestamp": "2026-06-07T00:00:00Z", "predicted_price": 72.04},
+    {"timestamp": "2026-06-07T01:00:00Z", "predicted_price": 72.79}
+  ]
+}
+```
+
+#### Возможные ошибки
+
+* `503 No day-ahead prices found in DB` — operational tables ещё не наполнены.
+* `500 missing_master_columns` — master frame не содержит одну из обязательных input-колонок.
+* `422 nan_in_features` — после FE фичи target дня содержат NaN. Обычно причина: мало истории, дыры в БД или нет forecast-данных на target date.
+* `400 No feature rows for target_date` — в собранном feature frame нет строк на выбранную дату.
+
+---
+
+### `GET /forecast/debug`
+
+То же, что `GET /forecast`, но возвращает компоненты прогноза:
+`y_base`, `y_spike_hi`, `y_spike_lo`, `prob_hi`, `prob_lo`, `risk_hi`, `risk_lo`, `y_final`.
+
+```bash
+curl -s "http://localhost:8000/forecast/debug?target_date=2026-06-07" | jq
+```
+
+Используется для:
+
+* диагностики spike blend;
+* мониторинга расхождений `y_base` ↔ `y_final`;
+* визуализации debug-компонентов в dashboard.
+
+---
+
+### `POST /forecast/from-history`
+
+Research/debug endpoint.
+
+Работает как старый `/forecast`: принимает hourly
+`history` в request body, строит features и возвращает прогноз.
+
+Этот режим нужен для:
+
+* offline experiments;
+* unit/integration tests;
+* проверки модели на кастомном history dataset;
+* сравнения разных master-frame сборок.
+
+```bash
+curl -s -X POST "http://localhost:8000/forecast/from-history" \
+  -H "Content-Type: application/json" \
+  -d @payload.json | jq
+```
+
+#### Request body
 
 ```json
 {
@@ -97,67 +210,51 @@ curl -s http://localhost:8000/info | jq '.metadata.val_mae, .blend_params'
 }
 ```
 
-**Response:**
+---
+
+### `GET /market/actuals`
+
+Возвращает фактические NL day-ahead цены из PostgreSQL для выбранной Amsterdam calendar date.
+
+Если `target_date` не передан, API берёт последнюю доступную дату в таблице
+`op_da_prices_hourly` для `country_label = 'nl'`.
+
+```bash
+curl -s "http://localhost:8000/market/actuals" | jq
+```
+
+Для конкретной даты:
+
+```bash
+curl -s "http://localhost:8000/market/actuals?target_date=2026-06-07" | jq
+```
+
+#### Response
 
 ```json
 {
-  "target_date": "2025-05-11",
-  "model_version": "v1.0.0-migrated",
-  "forecast_made_at": "2026-05-10T18:55:00Z",
+  "target_date": "2026-06-07",
   "n_hours": 24,
   "hourly": [
-    {"timestamp": "2025-05-11T00:00:00Z", "predicted_price": 72.04},
-    {"timestamp": "2025-05-11T01:00:00Z", "predicted_price": 72.79},
-    ...
+    {"timestamp": "2026-06-07T00:00:00Z", "actual_price": 73.10},
+    {"timestamp": "2026-06-07T01:00:00Z", "actual_price": 69.80}
   ]
 }
 ```
 
-**Что должно быть в history:**
-
-| Условие | Зачем |
-|---------|-------|
-| ≥ 35 дней до as_of | warmup для lag/rolling фич (lag_28d, roll_30d_mean, residual_p90 ...). Меньше — будут NaN, /forecast вернёт 422. |
-| Записи на target_date с forecast-колонками | `load_forecast`, `wind_forecast_mw`, `solar_forecast_mw`, `temperature_forecast`, `wind_speed_forecast`, `solar_radiation_forecast` — модель использует их напрямую. Цена target дня (`nl_day_ahead_price`) может отсутствовать. |
-| UTC timestamps | `2025-05-11T00:00:00Z` или `2025-05-11T00:00:00+00:00`. |
-
-**Возможные ошибки:**
-
-- `422 missing_columns` — в history нет требуемой input-колонки. Проверьте `/info/features`.
-- `422 nan_in_features` — после FE фичи target дня содержат NaN. Обычно это короткая история (< 35 дней warmup) или дыры в данных.
-- `400 No feature rows for target_date` — нет ни одной строки на target_date в history.
-
-### `POST /forecast/debug`
-
-Тот же `/forecast`, но вместе с финалом `y_final` возвращает все промежуточные
-сигналы. Полезно для:
-
-- мониторинга расхождений `y_base` ↔ `y_final`,
-- алертов на странные `prob_hi` / `prob_lo`,
-- визуализации работы spike blend в дашборде.
-
-**Response (один час):**
+Если данных за дату нет:
 
 ```json
 {
-  "timestamp": "2025-05-11T12:00:00Z",
-  "y_base":     -66.58,
-  "y_spike_hi": 141.78,
-  "y_spike_lo":  -47.27,
-  "prob_hi":      0.013,
-  "prob_lo":      0.997,
-  "risk_hi":      0.000,
-  "risk_lo":      0.993,
-  "y_final":     -49.32
+  "target_date": "2026-06-07",
+  "n_hours": 0,
+  "hourly": []
 }
 ```
 
-Здесь видно: classifier_lo даёт prob_lo = 0.997, что выше threshold (0.567), —
-поэтому risk_lo ≈ 1 и y_final подтянут от y_base = −66.58 к y_spike_lo = −47.27.
+## Архитектура
 
-## Архитектура (resp. модули)
-
-```
+```text
 src/api/
 ├── main.py            # FastAPI app, lifespan-загрузка bundle
 ├── cli.py             # uvicorn launcher
@@ -165,19 +262,39 @@ src/api/
 ├── schemas.py         # Pydantic v2 модели IO
 └── routes/
     ├── health.py      # /health, /info, /info/features
-    └── forecast.py    # POST /forecast, POST /forecast/debug
+    ├── forecast.py    # GET /forecast, GET /forecast/debug, POST /forecast/from-history
+    └── market.py      # GET /market/actuals
 ```
 
-Внутри `/forecast` route:
-1. `_records_to_df(req.history)` → `pd.DataFrame` с UTC DatetimeIndex
-2. валидация INPUT_COLUMNS
-3. `build_feature_frame(df, pipe.bundle.feature_params, ctx)` → 82-колоночные фичи
-4. срез по `target_date` → 24 строки
-5. `pipe.predict(X)` → 24 прогноза
-6. сериализация в `ForecastResponse`
+Operational flow для `GET /forecast`:
+
+```text
+PostgreSQL operational tables
+    ↓
+read_master_frame_from_db(as_of, lookback_days, forecast_days)
+    ↓
+build_feature_frame(master, pipe.bundle.feature_params, ctx)
+    ↓
+slice target_date rows
+    ↓
+pipe.predict(X)
+    ↓
+ForecastResponse
+```
+
+Streamlit flow:
+
+```text
+GET /market/actuals?target_date=...
+GET /forecast?target_date=...
+    ↓
+dashboard draws actual + forecast
+```
 
 ## Что НЕ делает
 
-- **Не ходит в БД.** Взаимодействие с БД пока что не реализованно на данном уровне.
-- **Не делает ingestion.** Свежие данные тянутся отдельной CLI командой (`python -m src.ingestion.operational.runner`).
-- **Не переобучает модель.** Пока что не реализовано.
+* **Не делает ingestion внутри API.** Свежие данные тянутся отдельной CLI командой:
+  `python -m src.ingestion.operational.runner`.
+* **Не переобучает модель.** API только загружает готовый model bundle.
+* **Не читает parquet/CSV cache в operational mode.** Источник данных для `/forecast`
+  и `/market/actuals` — PostgreSQL.

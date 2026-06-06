@@ -46,23 +46,23 @@ def main() -> None:
     print("\nRAW DATA INGESTION START\n")
 
     run_job("CO2 price", co2_price)
-    #run_job("Gas price", gas_price)
+    run_job("Gas price", gas_price)
 
-    #run_job("Weather forecast", weather_forecast)
-    #run_job("Weather actual", weather_actual)
+    run_job("Weather forecast", weather_forecast)
+    run_job("Weather actual", weather_actual)
 
-    #run_job("ENTSO-E load", load_15)
-    #run_job("ENTSO-E load forecast", load_forecast_15)
+    run_job("ENTSO-E load", load_15)
+    run_job("ENTSO-E load forecast", load_forecast_15)
 
-    #run_job("ENTSO-E imbalance price", imbalance_price_15)
+    run_job("ENTSO-E imbalance price", imbalance_price_15)
 
-    #run_job("TenneT settlement prices", tennet_settlement_prices)
-    #run_job("TenneT FRR activations", tennet_frr_activations)
-    #run_job("TenneT settled imbalance volumes", tennet_siv)
-    #run_job("TenneT merit order list", tennet_mol)
-    #run_job("TenneT balance delta high-res", tennet_balance_delta)
+    run_job("TenneT settlement prices", tennet_settlement_prices)
+    run_job("TenneT FRR activations", tennet_frr_activations)
+    run_job("TenneT settled imbalance volumes", tennet_siv)
+    run_job("TenneT merit order list", tennet_mol)
+    run_job("TenneT balance delta high-res", tennet_balance_delta)
 
-    #run_job("ENTSO-E day-ahead prices", day_ahead_prices)
+    run_job("ENTSO-E day-ahead prices", day_ahead_prices)
 
     run_job("ENTSO-E solar generation", solar_generation_15)
     run_job("ENTSO-E solar forecast", solar_forecast_15)
@@ -70,8 +70,8 @@ def main() -> None:
     run_job("ENTSO-E wind generation", wind_generation_15)
     run_job("ENTSO-E wind forecast", wind_forecast_15)
 
-    #run_job("ENTSO-E cross-border flows", crossborder_flows)
-    #run_job("ENTSO-E installed capacity", installed_capacity)
+    run_job("ENTSO-E cross-border flows", crossborder_flows)
+    run_job("ENTSO-E installed capacity", installed_capacity)
 
     print("\nRAW DATA INGESTION DONE\n")
 

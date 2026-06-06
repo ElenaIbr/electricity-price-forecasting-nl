@@ -33,12 +33,12 @@ The work has two parallel goals:
 ```
 ┌─────────────┐  ┌─────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌─────────────┐
 │ Ingestion   │→ │ Curated DB  │→ │ Feature engineer │→ │ Model bundle │→ │ Inference   │
-│             │  │ (Postgres)  │  │ (single contract)│  │ (versioned)  │  │ (CLI / API) │
+│             │  │ (Postgres)  │  │ (single contract)│  │ (versioned)  │  │ (API/UI)    │
 └─────────────┘  └─────────────┘  └──────────────────┘  └──────────────┘  └─────────────┘
-   ENTSO-E         raw_*           build_feature_     stacking +         POST /forecast
-   Open-Meteo     op_*             frame()            classifiers +      scripts/test_on_2026
-   yfinance      (incremental)    FittedFeature-      blend params
-                                  Params (quantiles) (joblib)
+   ENTSO-E         op_*             build_feature_      stacking +         GET /forecast
+   Open-Meteo      raw_*            frame()             classifiers +      GET /market/actuals
+   yfinance        (incremental)    FittedFeature-      blend params       Streamlit dashboard
+                                    Params              (joblib)
 ```
 
 The central design decision is the **single training-inference contract**. The same `build_feature_frame()` function computes features both during training (notebook) and at inference (API). This guarantees the absence of feature drift between train and serve — a well-known production failure mode in tabular ML systems. The contract is hardened with:
@@ -52,6 +52,7 @@ Model architecture: **Averaging Ensemble of 10 diverse LightGBM models** + **Asy
 
 ```
 electricity-price-forecasting-nl/
+├── app/streamlit_app.py
 ├── src/
 │   ├── ingestion/              # Data sources
 │   │   ├── *.py                # historical backfill (if_exists=replace)
@@ -80,7 +81,7 @@ electricity-price-forecasting-nl/
 │   │
 │   ├── api/                    # FastAPI inference service
 │   │   ├── main.py             # app + lifespan-loaded bundle
-│   │   ├── routes/{health,forecast}.py
+│   │   ├── routes/{health,forecast, actual}.py
 │   │   ├── schemas.py          # Pydantic v2
 │   │   ├── cli.py              # uvicorn launcher
 │   │   └── README.md
@@ -266,7 +267,7 @@ The `test_no_future_leakage` invariant guarantees that features at time T use on
 | Features | ✅ Done | `build_feature_frame` + 6 no-leakage tests + `FittedFeatureParams` |
 | Model bundle | ✅ Done | save / load / migrate + `feature_eng_hash` integrity check |
 | Forecast pipeline | ✅ Done | stack → clf → blend, `predict_with_components` |
-| API (inference) | ✅ Done | `/health`, `/info`, `/forecast`, `/forecast/debug` |
+| API (inference) | ✅ Done |  GET `/forecast`, GET `/forecast/debug`, GET `/market/actuals`, FastAPI + Streamlit integration |
 | Daily inference pipeline | ⏳ TODO | `src/inference/daily.py`: ingest → features → predict → persist |
 | Persistence layer | ⏳ TODO | alembic migrations (raw / curated / predictions schemas) |
 | Training pipeline | ⏳ TODO | refactor notebook → `src/training/` |
@@ -344,12 +345,12 @@ Master's thesis project. Not for commercial use without the author's consent.
 ```
 ┌─────────────┐  ┌─────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌─────────────┐
 │ Ingestion   │→ │ Curated DB  │→ │ Feature engineer │→ │ Model bundle │→ │ Inference   │
-│             │  │ (Postgres)  │  │ (single contract)│  │ (versioned)  │  │ (CLI / API) │
+│             │  │ (Postgres)  │  │ (single contract)│  │ (versioned)  │  │ (API/UI)    │
 └─────────────┘  └─────────────┘  └──────────────────┘  └──────────────┘  └─────────────┘
-   ENTSO-E         raw_*           build_feature_     stacking +         POST /forecast
-   Open-Meteo     op_*             frame()            classifiers +      scripts/test_on_2026
-   yfinance      (incremental)    FittedFeature-      blend params
-                                  Params (квантили)  (joblib)
+   ENTSO-E         op_*             build_feature_      stacking +         GET /forecast
+   Open-Meteo      raw_*            frame()             classifiers +      GET /market/actuals
+   yfinance        (incremental)    FittedFeature-      blend params       Streamlit dashboard
+                                    Params              (joblib)
 ```
 
 Главное архитектурное решение — **единый контракт training ↔ inference**. Один и тот же `build_feature_frame()` считает фичи и в обучении (в notebook), и в продакшен-инференсе (API). Контракт защищён двумя механизмами:
@@ -363,6 +364,7 @@ Master's thesis project. Not for commercial use without the author's consent.
 
 ```
 electricity-price-forecasting-nl/
+├── app/streamlit_app.py
 ├── src/
 │   ├── ingestion/              # Источники данных
 │   │   ├── *.py                # historical backfill (if_exists=replace)
@@ -391,7 +393,7 @@ electricity-price-forecasting-nl/
 │   │
 │   ├── api/                    # FastAPI inference service
 │   │   ├── main.py             # app + lifespan-загрузка bundle
-│   │   ├── routes/{health,forecast}.py
+│   │   ├── routes/{health,forecast, actual}.py
 │   │   ├── schemas.py          # Pydantic v2
 │   │   ├── cli.py              # uvicorn launcher
 │   │   └── README.md
@@ -427,10 +429,9 @@ electricity-price-forecasting-nl/
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# положи ENTSO-E token в .env (см. «Сборка с нуля», шаг 3)
+# положи ENTSO-E token в .env
 
 python scripts/test_on_2026.py --target-date 2026-04-15
-# → 24 hourly предсказания и факт, MAE 9.93 EUR/MWh
 ```
 
 Скрипт сам склеивает пять лет исторических данных из `data/master_hourly_2021_2025.csv` с live данными из ENTSO-E + Open-Meteo + yfinance на нужное окно.
@@ -577,7 +578,7 @@ NL DA gate closure: **12:00 CET D-1**, результаты публикуютс
 | Features | ✅ Done | `build_feature_frame` + 6 no-leakage тестов + `FittedFeatureParams` |
 | Model bundle | ✅ Done | save / load / migrate + `feature_eng_hash` integrity check |
 | Forecast pipeline | ✅ Done | stack → clf → blend, `predict_with_components` |
-| API (inference) | ✅ Done | `/health`, `/info`, `/forecast`, `/forecast/debug` |
+| API (inference) | ✅ Done |  GET `/forecast`, GET `/forecast/debug`, GET `/market/actuals`, FastAPI + Streamlit integration |
 | Daily inference pipeline | ⏳ TODO | `src/inference/daily.py`: ingest → features → predict → persist |
 | Persistence layer | ⏳ TODO | alembic-миграции (raw / curated / predictions схемы) |
 | Training pipeline | ⏳ TODO | рефакторинг notebook → `src/training/` |
