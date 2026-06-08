@@ -67,7 +67,7 @@ def fetch_actuals(target_date: date | None = None) -> dict:
         params["target_date"] = target_date.isoformat()
 
     response = requests.get(
-        f"{API_BASE_URL}/market/actuals",
+        f"{API_BASE_URL}/actuals",
         params=params,
         timeout=120,
     )
@@ -138,7 +138,7 @@ with st.sidebar:
 
 try:
     forecast_payload = fetch_forecast(target_input)
-    actuals_payload = fetch_actuals(target_input)
+    actuals_payload = {"hourly": [], "target_date": forecast_payload.get("target_date")}
 except Exception as exc:
     st.error(f"Не удалось загрузить данные: {exc}")
     st.stop()
