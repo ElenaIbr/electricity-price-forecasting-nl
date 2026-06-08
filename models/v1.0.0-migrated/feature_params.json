@@ -1,0 +1,10 @@
+{
+  "de_da_p90": 260.0,
+  "fit_period_end": "2024-12-31",
+  "fit_period_start": "2021-01-31",
+  "solar_forecast_max": 7821.5,
+  "solar_forecast_p80": 2204.100000000002,
+  "solar_radiation_fc_p95": 624.0,
+  "wind_forecast_max": 8245.25,
+  "wind_forecast_p20": 490.0
+}

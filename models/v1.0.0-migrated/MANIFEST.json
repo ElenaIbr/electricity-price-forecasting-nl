@@ -1,0 +1,6 @@
+{
+  "feature_eng_hash": "6d677ffc98d2784c4ba32ee18cc4cd641c9a1fbc1de87c34321e4a9ac5b2139f",
+  "n_features": 82,
+  "n_stack_models": 10,
+  "version": "v1.0.0-migrated"
+}
