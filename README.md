@@ -1,8 +1,6 @@
 # NL Day-Ahead Electricity Price Forecasting
 
 > Hourly day-ahead price forecasting for the Dutch electricity market — master's thesis project with production-grade refactoring.
->
-> Почасовой прогноз day-ahead цен на электроэнергию в Нидерландах — дипломный проект с production-grade инфраструктурой.
 
 ---
 
